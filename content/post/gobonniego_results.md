@@ -63,19 +63,21 @@ And we record them for the following IaaSes:
 
 The table below summarizes our findings:
 
-| IaaS      | Disk Type       | IOPS  | Write MB/s | Read MB/s   |
-| --------- | --------------  | ---:  | -----:     | ----------: |
-| AWS       | standard        | 3505  | 97         | 85          |
-|           | gp2             | 5441  | 102        | 92          |
-|           | io1             | 1816  | 102        | 93          |
-| Azure     | Standard        | 204   | 27         | 15          |
-|           | Premium 20 GiB  | 207   | 27         | 15          |
-|           | Premium 256 GiB | 1910  | 106        | 89          |
-| Google    | pd-standard     | 455   | 86         | 61          |
-|           | pd-ssd          | 10205 | 29         | 27          |
-| vSphere   | FreeNAS         | 11660 | 101        | 99          |
-|           | SATA SSD        | 47555 | 462        | 470         |
-|           | NVMe SSD        | 50911 | 1577       | 1614        |
+| IaaS      | Disk Type             | IOPS  | Write MB/s | Read MB/s   |
+| --------- | --------------        | ---:  | -----:     | ----------: |
+| AWS       | standard              | 1913  | 99         | 87          |
+|           | gp2                   | 3634  | 103        | 92          |
+|           | io1                   | 1210  | 102        | 94          |
+| Azure     | Standard 20 GiB cache | 8219  | 44         | 60          |  |
+|           | Premium 256 GiB cache | 7849  | 43         | 57          |
+| Google    | pd-standard 20 GiB    |  162  | 74         | 43          |
+|           | pd-standard 256 GiB   |  239  | 78         | 65          |
+|           | pd-ssd 20 GiB         |  6150 | 29         | 27          |
+|           | pd-ssd 256 GiB        | 11728 | 149        | 138         |
+| vSphere   | FreeNAS               | 7776  |  91        | 104         |
+|           | SATA SSD              | 26075 | 462        | 470         |
+|           | NVMe SSD              | 28484 | 1577       | 1614        |
+
 
 <div class="alert alert-warning" role="alert">
 
@@ -396,7 +398,7 @@ good and dwarfed the results of the other IaaSes and made them hard to read.
 Also, local disks are a special case, for they offer speed at the expense of
 reliability (a true [Faustian
 bargain](https://en.wikipedia.org/wiki/Deal_with_the_Devil)) — one disk crash
-and all the data's gone.
+and the data's all gone.
 
 On Azure, called out the importance of enabling host disk caching. If not
 enabled, Azure's IOPS are abysmal.
