@@ -38,8 +38,8 @@ underlying read throughput.
   storage. For general purpose use, always go with the SSD; however, if you're
   doing streaming (long reads or writes), the standard storage may be the better
   (and cheaper) choice.
-- AWS's io1 disk is a waste of money unless you need better performance than its
-  gp2 offering, which has an IOPS of ~5k. AWS's now-deprecated standard storage
+- AWS's io1 disk is a waste of money unless you need an IOPS > 6k (the
+  gp2 disk has an IOPS of ~5k). AWS's now-deprecated standard storage
   has a decent IOPS of ~3k.
 - Azure's standard LRS (locally redundant storage) has the same Performance as its
   premium LRS; however, the game changer is [Host Disk
@@ -67,8 +67,8 @@ The table below summarizes our findings:
 | --------- | --------------        | ---:  | -----:     | ----------: |
 | AWS       | standard              | 1913  | 99         | 87          |
 |           | gp2                   | 3634  | 103        | 92          |
-|           | io1                   | 1210  | 102        | 94          |
-| Azure     | Standard 20 GiB cache | 8219  | 44         | 60          |  |
+|           | io1 (1000 IOPS)       | 1210  | 102        | 94          |
+| Azure     | Standard 20 GiB cache | 8219  | 44         | 60          |
 |           | Premium 256 GiB cache | 7849  | 43         | 57          |
 | Google    | pd-standard 20 GiB    |  162  | 74         | 43          |
 |           | pd-standard 256 GiB   |  239  | 78         | 65          |
@@ -82,20 +82,94 @@ The table below summarizes our findings:
 <div class="alert alert-warning" role="alert">
 
 <b>These benchmarks are not gospel.</b> Even though they are recorded precisely,
-they are not precise. For example, we report the GCE <i>pd-standard</i> IOPS as
-455, which was the average over the course of ten runs, but the actual numbers
-fluctuated wildly on any given run — as high as 712 on one, as low as 130 on
-another (the standard deviation of the ten runs is a whopping 280). View these
-numbers with a healthy dose of skepticism.
+they are not precise. For example, we report the GCE <i>pd-standard</i> Read
+MB/s as 43, which was the average over the course of ten runs, but the actual
+numbers fluctuated wildly on any given run — as high as 98 on one, as low as
+6 on another (the standard deviation of the ten runs is a whopping 43). View
+these numbers with a healthy dose of skepticism.
 
 <p /><p />
 
 A better use of these benchmarks would be to look for broader trends, e.g.
-"GCE's SSD storage has much better IOPS than their standard storage" or
-"vSphere's NVMe storage throughput can be as much as three times faster than
-their SSD SATA's."
+"Google's SSD storage has much better IOPS than their standard storage".
 
 </div>
+
+
+## 1. IOPS Performance
+
+We feel that, in general, IOPS is the most important metric when judging storage
+speed: The advent of solid-state drives (SSDs) with their high IOPS
+([>10k](https://en.wikipedia.org/wiki/IOPS)) exceeding by traditional hard disk
+drives by an order of magnitude or more, was a game-changer.
+
+Below is a chart of the results of the IOPS benchmark. Note that the 256 GiB
+Google SSD drive appears to be the winner, but only because we have excluded the
+results of the vSphere local SSD disks (SATA & NVMe) from these charts (don't
+worry, we'll include them in a chart [further down](#vsphere)). Also note that
+Google [scales the performance of the disk with the size of the
+disk](https://cloud.google.com/compute/docs/disks/#introduction): all else being
+equal, the bigger disk will have better performance, and we see that reflected
+in the scoring: the 256 GiB Google SSD disk leads the pack, but the 20 GiB disk
+lands squarely in the middle.
+
+While we're on the topic of Google, its standard drive has the worst performance
+of any IaaS storage where IOPS is concerned. The 256 GiB standard drive has an
+IOPS of 239, the 20 GiB, 162. Note that these numbers aren't bad for magnetic
+disk storage, it's just that they seem lackluster when compared to the other
+IaaSes' storage offerings.
+
+AWS's io1 storage is a "tunable" storage offering — you specify the number of
+IOPS you require. In our benchmarks we specified 1,000 IOPS, and we were pleased
+that AWS exceeded that by 20%. Interestingly, the io1 numbers were precisely
+clustered: across all ten runs the IOPS were within ±2 of each other (standard
+deviation of 1.8).
+
+{{< responsive-figure src="https://docs.google.com/spreadsheets/d/e/2PACX-1vTddYLAn6UFpesWIPH5S6ptr9sm3ECcHxf5aYobpfKqT1pdp8IyTZu4D9yV7SOmwQEVkhgwpy5xnlUW/pubchart?oid=1346974855&format=image" >}}
+
+## 2. Read Performance
+
+Read performance is important for applications which stream large amounts of
+data (e.g. video servers). It's also useful for applications which fling disk
+images around (e.g. BOSH Directors).
+
+{{< responsive-figure src="https://docs.google.com/spreadsheets/d/e/2PACX-1vTddYLAn6UFpesWIPH5S6ptr9sm3ECcHxf5aYobpfKqT1pdp8IyTZu4D9yV7SOmwQEVkhgwpy5xnlUW/pubchart?oid=710877827&format=image" >}}
+
+## 3. Write Performance
+
+Write performance is important for applications which write large datasets:
+e.g. disk images, BOSH stemcells, large videos, etc.
+
+Below is a chart of the results of the write benchmark. The topmost item is the
+fastest:
+
+{{< responsive-figure
+src="https://docs.google.com/spreadsheets/d/e/2PACX-1vTddYLAn6UFpesWIPH5S6ptr9sm3ECcHxf5aYobpfKqT1pdp8IyTZu4D9yV7SOmwQEVkhgwpy5xnlUW/pubchart?oid=1214783557&format=image" >}}
+
+## 4. IaaS-specific Commentary
+
+### 4.0 AWS
+
+- AWS gp2 is a good overall choice; io1 storage is poor value unless one needs
+  IOPS and throughput greater than what gp2 storage offers. Per AWS's
+  [website](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EBSVolumeTypes.html),
+  _"[io1 should be used for] Critical business applications that require
+  sustained IOPS performance, or more than 10,000 IOPS or 160 MiB/s of
+  throughput per volume"_
+
+### 4.1 The Performance of Azure
+
+We could find no difference in performance between Azure Standard Managed
+Disks and Azure Premium Managed Disks
+<sup><a href="#samsung">[Samsung]</a></sup>
+
+- Azure Premium storage offers little value for smaller disks (e.g. 32 GiB);
+  in those cases, go with the less-expensive Standard storage for equivalent
+  performance.
+
+### 4.2 Google Cloud Platform
+
+### <a id="vsphere">4.3 The Unbelievable Performance of vSphere Local Disks</a>
 
 - VMware vSphere offers the best disk performance of all the IaaSes;
   however, results should be taken with a grain of salt, for the
@@ -111,58 +185,8 @@ their SSD SATA's."
     performance of the other IaaSes, even one such as ours with a meager
     1 Gbps interface.
     <sup><a href="#freenas">[FreeNAS]</a></sup>
-- Azure Premium storage offers little value for smaller disks (e.g. 32 GiB);
-  in those cases, go with the less-expensive Standard storage for equivalent
-  performance.
-- AWS gp2 is a good overall choice; io1 storage is poor value unless one needs
-  IOPS and throughput greater than what gp2 storage offers. Per AWS's
-  [website](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EBSVolumeTypes.html),
-  _"[io1 should be used for] Critical business applications that require
-  sustained IOPS performance, or more than 10,000 IOPS or 160 MiB/s of
-  throughput per volume"_
 
-## 1. IOPS Performance
-
-We feel that, in general, IOPS is the most important metric when judging storage
-speed: The advent of solid-state drives (SSDs) with their high IOPS
-([>10k](https://en.wikipedia.org/wiki/IOPS)) exceeding by traditional hard disk
-drives by an order of magnitude or more, was a game-changer.
-
-Below is a chart of the results of the IOPS benchmark. The topmost item is the
-fastest:
-
-{{< responsive-figure src="https://user-images.githubusercontent.com/1020675/37372076-c8be8884-26ce-11e8-8bfe-65aded70e084.png" >}}
-
-## 2. Write Performance
-
-Write performance is important for applications which write large datasets:
-e.g. disk images, BOSH stemcells, large videos, etc.
-
-Below is a chart of the results of the write benchmark. The topmost item is the
-fastest:
-
-{{< responsive-figure src="https://user-images.githubusercontent.com/1020675/37372075-c874a714-26ce-11e8-84a5-1b65d80d3741.png" >}}
-
-## 3. Read Performance
-
-Read performance is important for applications which stream large amounts of
-data (e.g. video servers).
-
-We have found the read and write performance similar for a given IaaS/given disk
-type-tuple. The chart of read performance below is not much different than the chart
-above:
-
-{{< responsive-figure src="https://user-images.githubusercontent.com/1020675/37372074-c808bd7e-26ce-11e8-99ab-467e07850280.png" >}}
-
-## 4. The Unbelievable Performance of vSphere Local Disks
-
-## 5. The Performance of Azure
-
-We could find no difference in performance between Azure Standard Managed
-Disks and Azure Premium Managed Disks
-<sup><a href="#samsung">[Samsung]</a></sup>
-
-## 4. Testing Methodology
+## 5. Testing Methodology
 
 We used [BOSH](https://bosh.io/) to deploy VMs to each of the various IaaSes.
 
@@ -182,7 +206,7 @@ We used the following instance types for each of the IaaSes:
 |           |                 |         |             | SATA SSD        |
 |           |                 |         |             | NVMe SSD        |
 
-### 4.0 Cores, Preferably 8
+### 5.0 Cores, Preferably 8
 
 Our overarching goal was to have 8 cores for the vSphere NVMe SSD benchmark. The
 reason we wanted so many cores was that the processor, an  [Intel Xeon Processor
@@ -230,21 +254,21 @@ available. Through experimentation, we found that four cores wasn't enough to
 benchmark the Samsung NVMe (all four CPUs were at 100% utilization), but that
 six cores was. Six, however, is not a power of two, so we rounded up to 8 cores.
 
-### 4.1 RAM: 4 - 8 GiB
+### 5.1 RAM: 4 - 8 GiB
 
 We wanted 4-to-8 GiB RAM, dependent on what the IaaS allowed us. The amount of
 data written for each benchmark was twice the size of physical RAM, so VMs with
 twice the RAM should have no added advantage ([buffer
 cache](https://www.tldp.org/LDP/sag/html/buffer-cache.html) notwithstanding).
 
-### 4.2 Disk: 20 GiB
+### 5.2 Disk: 20 GiB
 
 We chose to run our test on the [BOSH persistent
 disk](https://bosh.io/docs/persistent-disks.html), for it was more flexible to
 size than the root disk. We chose a disk size of 20 GiB, with the exception of
 Azure, where we ran a second benchmark with a disk of 256 GiB.
 
-## 5. Methodology Shortcomings
+## 6. Methodology Shortcomings
 
 We wrote our own benchmark program; it may be grossly flawed.
 
@@ -282,7 +306,7 @@ AWS's gp2 and io1.
 
 * [GoBonnieGo](https://github.com/cunnie/gobonniego) filesystem benchmark tool
 * Benchmark configuration: BOSH Cloud Configs and manifests: <https://github.com/cunnie/deployments/tree/master/gobonniego>
-* Benchmark results (raw JSON files): <https://github.com/cunnie/freenas_benchmarks/tree/master/gobonniego>
+* Benchmark results (raw JSON files): <https://github.com/cunnie/freenas_benchmarks/tree/master/gobonniego-1.0.7>
 * Google Sheet containing summarized benchmark results and graphs: <https://docs.google.com/spreadsheets/d/1elngT-eHr5_RVyoPj1UKkr-7eveCw_JNXPlVFo6ECvs>
 
 ## Footnotes
